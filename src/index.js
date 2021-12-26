@@ -74,15 +74,24 @@ function connectedCallback() {
 		bubbles: true,
 		cancelable: true,
 	});
-	this.dispatchEvent(event);
-	const context = event.detail.context;
 
-	this._vdom = h(
-		ContextProvider,
-		{ ...this._props, context },
-		toVdom(this, this._vdomComponent, this._hasShadow)
-	);
-	(this.hasAttribute('hydrate') ? hydrate : render)(this._vdom, this._root);
+	const renderEl = () => {
+		this.dispatchEvent(event);
+		const context = event.detail.context;
+
+		this._vdom = h(
+			ContextProvider,
+			{ ...this._props, context },
+			toVdom(this, this._vdomComponent, this._hasShadow)
+		);
+		(this.hasAttribute('hydrate') ? hydrate : render)(this._vdom, this._root);
+	};
+
+	if (document.readyState !== 'loading') {
+		renderEl();
+	} else {
+		window.addEventListener('DOMContentLoaded', renderEl);
+	}
 }
 
 function toCamelCase(str) {
