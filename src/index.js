@@ -1,4 +1,5 @@
 import { h, cloneElement, render, hydrate } from 'preact';
+import { memo } from 'preact/compat';
 
 export default function register(Component, tagName, propNames, options) {
 	function PreactElement() {
@@ -88,7 +89,7 @@ function toCamelCase(str) {
 	return str.replace(/-(\w)/g, (_, c) => (c ? c.toUpperCase() : ''));
 }
 
-function attributeChangedCallback(name, oldValue, newValue) {
+function attributeChangedCallback(name, _, newValue) {
 	if (!this._vdom) return;
 	// Attributes use `null` as an empty value whereas `undefined` is more
 	// common in pure JS components, especially with default parameters.
@@ -113,23 +114,41 @@ function disconnectedCallback() {
  * synchronously, the child can immediately pull of the value right
  * after having fired the event.
  */
-function Slot(props, context) {
-	const ref = (r) => {
-		if (!r) {
-			this.ref.removeEventListener('_preact', this._listener);
-		} else {
-			this.ref = r;
-			if (!this._listener) {
-				this._listener = (event) => {
-					event.stopPropagation();
-					event.detail.context = context;
-				};
-				r.addEventListener('_preact', this._listener);
-			}
+const forwardContext = (inst, ref, context) => {
+	if (!ref) {
+		inst.ref.removeEventListener('_preact', inst._listener);
+	} else {
+		inst.ref = ref;
+		if (!inst._listener) {
+			inst._listener = (event) => {
+				event.stopPropagation();
+				event.detail.context = context;
+			};
+			ref.addEventListener('_preact', inst._listener);
 		}
-	};
-	return h('slot', { ...props, ref });
+	}
+};
+
+function Slot(props, context) {
+	return h('slot', {
+		...props,
+		ref: (ref) => forwardContext(this, ref, context),
+	});
 }
+
+const FakeSlot = memo(
+	function ({ name, el, els }, context) {
+		return h('slot', {
+			name,
+			ref: (ref) => {
+				forwardContext(this, ref, context);
+				if (!ref) return;
+				el ? ref.appendChild(el) : els.forEach((el) => ref.appendChild(el));
+			},
+		});
+	},
+	() => true
+);
 
 function toVdom(element, nodeName, hasShadow) {
 	if (element.nodeType === 3) return element.data;
@@ -149,15 +168,19 @@ function toVdom(element, nodeName, hasShadow) {
 	for (i = cn.length; i--; ) {
 		// Move slots correctly
 		const name = cn[i].slot;
-		const vnode = !hasShadow && toVdom(cn[i], null);
-		if (name) {
-			props[name] = h(Slot, { name }, vnode);
-		} else if (!hasShadow) {
-			children[i] = vnode;
+		if (!name && !hasShadow) {
+			children.unshift(cn[i]);
+			continue;
 		}
+		props[name] = hasShadow
+			? h(Slot, { name })
+			: h(FakeSlot, { name, el: cn[i] });
 	}
 
-	// Only wrap the topmost node with a slot
-	const wrappedChildren = nodeName ? h(Slot, null, children) : children;
+	if (!hasShadow) {
+		element.innerHTML = '';
+	}
+
+	const wrappedChildren = hasShadow ? h(Slot) : h(FakeSlot, { els: children });
 	return h(nodeName || element.nodeName.toLowerCase(), props, wrappedChildren);
 }
