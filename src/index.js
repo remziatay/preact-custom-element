@@ -152,7 +152,8 @@ const FakeSlot = memo(
 			ref: (ref) => {
 				forwardContext(this, ref, context);
 				if (!ref) return;
-				el ? ref.appendChild(el) : els.forEach((el) => ref.appendChild(el));
+				el ? ref.after(el) : ref.after(...els);
+				ref.remove();
 			},
 		});
 	},
