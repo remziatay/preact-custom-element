@@ -4,8 +4,8 @@ export default function register(Component, tagName, propNames, options) {
 	function PreactElement() {
 		const inst = Reflect.construct(HTMLElement, [], PreactElement);
 		inst._vdomComponent = Component;
-		inst._root =
-			options && options.shadow ? inst.attachShadow({ mode: 'open' }) : inst;
+		inst._hasShadow = options && options.shadow;
+		inst._root = inst._hasShadow ? inst.attachShadow({ mode: 'open' }) : inst;
 		return inst;
 	}
 	PreactElement.prototype = Object.create(HTMLElement.prototype);
@@ -79,7 +79,7 @@ function connectedCallback() {
 	this._vdom = h(
 		ContextProvider,
 		{ ...this._props, context },
-		toVdom(this, this._vdomComponent)
+		toVdom(this, this._vdomComponent, this._hasShadow)
 	);
 	(this.hasAttribute('hydrate') ? hydrate : render)(this._vdom, this._root);
 }
@@ -131,7 +131,7 @@ function Slot(props, context) {
 	return h('slot', { ...props, ref });
 }
 
-function toVdom(element, nodeName) {
+function toVdom(element, nodeName, hasShadow) {
 	if (element.nodeType === 3) return element.data;
 	if (element.nodeType !== 1) return null;
 	let children = [],
@@ -147,12 +147,12 @@ function toVdom(element, nodeName) {
 	}
 
 	for (i = cn.length; i--; ) {
-		const vnode = toVdom(cn[i], null);
 		// Move slots correctly
 		const name = cn[i].slot;
+		const vnode = !hasShadow && toVdom(cn[i], null);
 		if (name) {
 			props[name] = h(Slot, { name }, vnode);
-		} else {
+		} else if (!hasShadow) {
 			children[i] = vnode;
 		}
 	}
