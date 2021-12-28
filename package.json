@@ -77,5 +77,8 @@
 		"hooks": {
 			"pre-commit": "lint-staged"
 		}
+	},
+	"dependencies": {
+		"html-parsed-element": "^0.4.1"
 	}
 }

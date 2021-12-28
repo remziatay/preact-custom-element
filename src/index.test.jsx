@@ -23,11 +23,12 @@ describe('web components', () => {
 
 	registerElement(Clock, 'x-clock', ['time', 'custom-date']);
 
-	it('renders ok, updates on attr change', () => {
+	it('renders ok, updates on attr change', async () => {
 		const el = document.createElement('x-clock');
 		el.setAttribute('time', '10:28:57 PM');
 
 		root.appendChild(el);
+		await new Promise((res) => requestAnimationFrame(res));
 		assert.equal(
 			root.innerHTML,
 			'<x-clock time="10:28:57 PM"><span>10:28:57 PM</span></x-clock>'
@@ -56,7 +57,7 @@ describe('web components', () => {
 	});
 
 	describe('DOM properties', () => {
-		it('passes property changes to props', () => {
+		it('passes property changes to props', async () => {
 			const el = document.createElement('x-clock');
 
 			el.time = '10:28:57 PM';
@@ -186,12 +187,13 @@ describe('web components', () => {
 		camelName,
 	]);
 
-	it('handles kebab-case attributes with passthrough', () => {
+	it('handles kebab-case attributes with passthrough', async () => {
 		const el = document.createElement('x-prop-name-transform');
 		el.setAttribute(kebabName, '11/11/2011');
 		el.setAttribute(camelName, 'pretended to be camel');
 
 		root.appendChild(el);
+		await new Promise((res) => requestAnimationFrame(res));
 		assert.equal(
 			root.innerHTML,
 			`<x-prop-name-transform ${kebabName}="11/11/2011" ${lowerName}="pretended to be camel"><span>11/11/2011 pretended to be camel 11/11/2011</span></x-prop-name-transform>`
@@ -230,6 +232,7 @@ describe('web components', () => {
 		el.appendChild(noSlot);
 
 		root.appendChild(el);
+		await new Promise((res) => requestAnimationFrame(res));
 		assert.equal(
 			root.innerHTML,
 			'<x-parent><x-display-theme></x-display-theme></x-parent>'

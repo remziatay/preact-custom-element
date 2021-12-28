@@ -1,3 +1,4 @@
+import HTMLParsedElement from 'html-parsed-element';
 import { h, cloneElement, render, hydrate } from 'preact';
 import { memo } from 'preact/compat';
 
@@ -11,7 +12,7 @@ export default function register(Component, tagName, propNames, options) {
 	}
 	PreactElement.prototype = Object.create(HTMLElement.prototype);
 	PreactElement.prototype.constructor = PreactElement;
-	PreactElement.prototype.connectedCallback = connectedCallback;
+	PreactElement.prototype.parsedCallback = parsedCallback;
 	PreactElement.prototype.attributeChangedCallback = attributeChangedCallback;
 	PreactElement.prototype.disconnectedCallback = disconnectedCallback;
 
@@ -33,7 +34,7 @@ export default function register(Component, tagName, propNames, options) {
 				} else {
 					if (!this._props) this._props = {};
 					this._props[name] = v;
-					this.connectedCallback();
+					this.parsedCallback();
 				}
 
 				// Reflect property changes to attributes if the value is a primitive
@@ -52,7 +53,7 @@ export default function register(Component, tagName, propNames, options) {
 
 	return customElements.define(
 		tagName || Component.tagName || Component.displayName || Component.name,
-		PreactElement
+		HTMLParsedElement.withParsedCallback(PreactElement)
 	);
 }
 
@@ -63,7 +64,7 @@ function ContextProvider(props) {
 	return cloneElement(children, rest);
 }
 
-function connectedCallback() {
+function parsedCallback() {
 	// Obtain a reference to the previous context by pinging the nearest
 	// higher up node that was rendered with Preact. If one Preact component
 	// higher up receives our ping, it will set the `detail` property of
@@ -74,24 +75,14 @@ function connectedCallback() {
 		bubbles: true,
 		cancelable: true,
 	});
-
-	const renderEl = () => {
-		this.dispatchEvent(event);
-		const context = event.detail.context;
-
-		this._vdom = h(
-			ContextProvider,
-			{ ...this._props, context },
-			toVdom(this, this._vdomComponent, this._hasShadow)
-		);
-		(this.hasAttribute('hydrate') ? hydrate : render)(this._vdom, this._root);
-	};
-
-	if (document.readyState !== 'loading') {
-		renderEl();
-	} else {
-		window.addEventListener('DOMContentLoaded', renderEl);
-	}
+	this.dispatchEvent(event);
+	const context = event.detail.context;
+	this._vdom = h(
+		ContextProvider,
+		{ ...this._props, context },
+		toVdom(this, this._vdomComponent, this._hasShadow)
+	);
+	(this.hasAttribute('hydrate') ? hydrate : render)(this._vdom, this._root);
 }
 
 function toCamelCase(str) {
@@ -152,8 +143,7 @@ const FakeSlot = memo(
 			ref: (ref) => {
 				forwardContext(this, ref, context);
 				if (!ref) return;
-				el ? ref.after(el) : ref.after(...els);
-				ref.remove();
+				el ? ref.append(el) : ref.append(...els);
 			},
 		});
 	},
