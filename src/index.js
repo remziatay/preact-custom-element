@@ -1,6 +1,7 @@
 import HTMLParsedElement from 'html-parsed-element';
 import { h, cloneElement, render, hydrate } from 'preact';
 import { memo } from 'preact/compat';
+import { HostContext } from './HostContext';
 
 export default function register(Component, tagName, propNames, options) {
 	function PreactElement() {
@@ -77,12 +78,20 @@ function parsedCallback() {
 	});
 	this.dispatchEvent(event);
 	const context = event.detail.context;
+
+	const hostContext = {
+		host: this,
+		shadowRoot: this.shadowRoot,
+		isParsed: true,
+	};
+
 	this._vdom = h(
 		ContextProvider,
 		{ ...this._props, context },
 		toVdom(this, this._vdomComponent, this._hasShadow)
 	);
-	(this.hasAttribute('hydrate') ? hydrate : render)(this._vdom, this._root);
+	const vdom = h(HostContext.Provider, { value: hostContext }, this._vdom);
+	(this.hasAttribute('hydrate') ? hydrate : render)(vdom, this._root);
 }
 
 function toCamelCase(str) {
@@ -99,8 +108,18 @@ function attributeChangedCallback(name, _, newValue) {
 	const props = {};
 	props[name] = newValue;
 	props[toCamelCase(name)] = newValue;
+
 	this._vdom = cloneElement(this._vdom, props);
-	render(this._vdom, this._root);
+
+	const hostContext = {
+		host: this,
+		shadowRoot: this.shadowRoot,
+		isParsed: true,
+	};
+
+	const vdom = h(HostContext.Provider, { value: hostContext }, this._vdom);
+
+	render(vdom, this._root);
 }
 
 function disconnectedCallback() {
@@ -122,7 +141,11 @@ const forwardContext = (inst, ref, context) => {
 		if (!inst._listener) {
 			inst._listener = (event) => {
 				event.stopPropagation();
-				event.detail.context = context;
+				event.detail.context = Object.fromEntries(
+					Object.entries(context).filter(
+						([, context]) => context.props.children.type !== ContextProvider
+					)
+				);
 			};
 			ref.addEventListener('_preact', inst._listener);
 		}
