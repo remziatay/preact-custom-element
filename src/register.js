@@ -1,6 +1,5 @@
 import HTMLParsedElement from 'html-parsed-element';
 import { h, cloneElement, render, hydrate } from 'preact';
-import { memo } from 'preact/compat';
 import { HostContext } from './HostContext';
 
 export default function register(Component, tagName, propNames, options) {
@@ -79,10 +78,9 @@ function parsedCallback() {
 	this.dispatchEvent(event);
 	const context = event.detail.context;
 
-	const hostContext = {
+	this._hostContext = {
 		host: this,
 		shadowRoot: this.shadowRoot,
-		isParsed: true,
 	};
 
 	this._vdom = h(
@@ -90,7 +88,11 @@ function parsedCallback() {
 		{ ...this._props, context },
 		toVdom(this, this._vdomComponent, this._hasShadow)
 	);
-	const vdom = h(HostContext.Provider, { value: hostContext }, this._vdom);
+	const vdom = h(
+		HostContext.Provider,
+		{ value: this._hostContext },
+		this._vdom
+	);
 	(this.hasAttribute('hydrate') ? hydrate : render)(vdom, this._root);
 }
 
@@ -111,13 +113,11 @@ function attributeChangedCallback(name, _, newValue) {
 
 	this._vdom = cloneElement(this._vdom, props);
 
-	const hostContext = {
-		host: this,
-		shadowRoot: this.shadowRoot,
-		isParsed: true,
-	};
-
-	const vdom = h(HostContext.Provider, { value: hostContext }, this._vdom);
+	const vdom = h(
+		HostContext.Provider,
+		{ value: this._hostContext },
+		this._vdom
+	);
 
 	render(vdom, this._root);
 }
@@ -133,7 +133,7 @@ function disconnectedCallback() {
  * synchronously, the child can immediately pull of the value right
  * after having fired the event.
  */
-const forwardContext = (inst, ref, context) => {
+export const forwardContext = (inst, ref, context) => {
 	if (!ref) {
 		inst.ref.removeEventListener('_preact', inst._listener);
 	} else {
@@ -159,19 +159,16 @@ function Slot(props, context) {
 	});
 }
 
-const FakeSlot = memo(
-	function ({ name, el, els }, context) {
-		return h('slot', {
-			name,
-			ref: (ref) => {
-				forwardContext(this, ref, context);
-				if (!ref) return;
-				el ? ref.append(el) : ref.append(...els);
-			},
-		});
-	},
-	() => true
-);
+function FakeSlot({ name, el, els }, context) {
+	return h('slot', {
+		name,
+		ref: (ref) => {
+			forwardContext(this, ref, context);
+			if (!ref) return;
+			el ? ref.append(el) : ref.append(...els);
+		},
+	});
+}
 
 function toVdom(element, nodeName, hasShadow) {
 	if (element.nodeType === 3) return element.data;
@@ -201,7 +198,9 @@ function toVdom(element, nodeName, hasShadow) {
 	}
 
 	if (!hasShadow) {
-		element.innerHTML = '';
+		for (i = cn.length; i--; ) {
+			cn[i].remove();
+		}
 	}
 
 	const wrappedChildren = hasShadow ? h(Slot) : h(FakeSlot, { els: children });
